@@ -1,0 +1,51 @@
+
+[Archive copy of http://jackdied.blogspot.com/2009/07/dominoes.html]
+
+Dominoes
+
+Playing dominoes is hard. Like playing card games there are many games you can play with dominoes and last night I was exposed to Muggins/Fives. Muggins has a points system and unlike the kiddie version of dominoes that I grew up with is not a game of chance (think War versus Bridge). The big tipoffs that it is a hard problem are that A) it is a partial information game [you can only see the board and your own hand] and B) grown men play against each other for money [I'm told the variant we were playing is very popular in the Bahamas].
+
+The first thing I did was look for AI research papers on solving dominoes. After an hour of feeding terms to search engines I can say: there is no research. This is strange because Checkers (a boring perfect information game) was still interesting enough to researchers that it was solved only 10 years ago. People don't bet on checkers so the fact that dominoes is a research orphan left me intrigued. Of course there's a personal angle too: If it was an easy problem to solve I could solve it and then travel while grifting strangers out of their money; If it was a hard problem to solve (like Bridge or Go) then I'd add it to my list of "fun things to play."
+
+In Muggins you get points when all of the exposed end tiles add up to a multiple of five. If you go out first you also get bonus points equal to the sum of the pips in your opponents' hands.
+
+After a couple hours I had a working 150 line simulator and two simple strategies: play any legal move (dumb strategy) and play the highest scoring legal move (less dumb). I use the term "working" loosely. A number of nefarious bugs related to non-randomness lurked in the code. These caused the last player added to win ties in scoring, who goes first, and some other spots. You can view the final dominoes.py source here.
+
+To implement the strategies I went for the simplest thing that could possibly work: generator coroutines. They have a simple interface and they keep state so even somewhat complicated strategies are possible without writing a big interface class. You just write a function with a couple breakpoints and everything just works. Here is the generator for "play the first move that is legal"
+
+def dumb_player(player_no, board, hand):
+    ''' play the first domino that is legal '''
+        yield None # signal that we are setup
+	while True:
+	        for a, b in pairs_and_reverse(hand): # (a,b)+(b, a)
+	                try:
+		                board.play(player_no, a, b)
+		                # if we get here it is a legal play
+		                yield None
+		                break
+			except IllegalPlay: pass
+		else:
+		        # draw a possibly legal play
+		        board.draw(player_no)
+        return
+
+
+The boiler plate of setup and try/except Illegal play was identical over all the simple strategies so I refactored so that the strategy is just a scoring function applied to all legal moves. The simple strategy becomes ("a" and "b" are the two ends of the domino, "a" is the side that matches the board and "b" is the open end left after play):
+
+def dumb_player(board, player_no, a, b):
+    ''' randomly choose a legal play '''
+        return None # all plays are equal
+
+.. and the strategy for playing the highest scoring move possible is
+
+def score_player(board, player_no, a, b):
+    ''' always plays the immediately highest scoring tile '''
+        sc = board.play(player_no, a, b)
+	    board.undo()
+	        return sc
+
+Add a function that does a round-robin tourney of all scoring functions 5000 times each and you have a quick fitness test.
+
+Well, it turns out dominoes is easy (or at least simple). This blew away all my assumptions; If you look at the source I have a dozen scoring functions some of which consider the pips on the already played tiles and the secret pips in the players hand. The best of them beats the very simple "score_player" just 50.5% of the time. 50.5% is a solid money maker if you are playing blackjack against the house at hundreds of hands an hour, but peanuts if you are playing 10 games of dominoes an hour against someone who is using the simple score_player strategy.
+
+The source is out there and understandable (500 lines, 300 of which are short strategy functions). If anyone can consistently beat my best attempt "score_blocker6" then post the source in the comments and I'll buy you a beer next PyCon.
